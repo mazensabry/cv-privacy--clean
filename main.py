@@ -5,11 +5,16 @@ import re
 import io
 import zipfile
 
+# إنشاء تطبيق FastAPI الرئيسي
 app = FastAPI(title="oldorado CV Cleaner")
 
 def redact_pdf_bytes(pdf_bytes: bytes) -> bytes:
+    """
+    دالة تقوم بقراءة ملف الـ PDF وطمس أرقام الهواتف والإيميلات والروابط والعناوين.
+    """
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     
+    # أنماط التعبير النمطي (Regex) للبحث عن البيانات الحساسة
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     phone_pattern = r'(?:\+\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{4,}'
     url_pattern = r'(https?://\S+|www\.\S+|linkedin\.com/\S+|github\.com/\S+)'
@@ -19,6 +24,7 @@ def redact_pdf_bytes(pdf_bytes: bytes) -> bytes:
         text = page.get_text("text")
         rects = []
 
+        # البحث عن الإيميلات والروابط والهواتف
         for email in re.findall(email_pattern, text):
             rects.extend(page.search_for(email))
         for url in re.findall(url_pattern, text):
@@ -33,6 +39,7 @@ def redact_pdf_bytes(pdf_bytes: bytes) -> bytes:
                 extended = fitz.Rect(rect.x0 - 50, rect.y0 - 5, rect.x1 + 300, rect.y1 + 5)
                 rects.append(extended)
 
+        # تطبيق المستطيلات السوداء للطمس
         for rect in rects:
             page.add_redact_annot(rect, fill=(0, 0, 0))
         page.apply_redactions()
@@ -44,6 +51,9 @@ def redact_pdf_bytes(pdf_bytes: bytes) -> bytes:
 
 @app.get("/", response_class=HTMLResponse)
 async def main_page():
+    """
+    عرض واجهة المستخدم السريعة عبر HTML
+    """
     return """
     <!DOCTYPE html>
     <html lang="ar" dir="rtl">
@@ -113,7 +123,7 @@ async def main_page():
                 }
 
                 try {
-                    const response = await fetch('/clean/', {
+                    const response = await fetch('/clean', {
                         method: 'POST',
                         body: formData
                     });
@@ -149,7 +159,7 @@ async def main_page():
     </html>
     """
 
-@app.post("/clean/")
+@app.post("/clean")
 async def clean_cvs(files: list[UploadFile] = File(...)):
     if len(files) == 1:
         file = files[0]
